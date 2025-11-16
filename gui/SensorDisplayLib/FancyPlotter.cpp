@@ -30,12 +30,12 @@
 #include <QLocale>
 #include <QResizeEvent>
 #include <QStandardPaths>
-#include <QRegExp>
+#include <QRegularExpression>
 
 #include <KMessageBox>
-#include <ksignalplotter.h>
+#include "../signalplotter/ksignalplotter.h"
 
-#include <ksgrd/SensorManager.h>
+#include "../ksgrd/SensorManager.h"
 #include "StyleEngine.h"
 
 #include "FancyPlotterSettings.h"
@@ -54,7 +54,8 @@ static inline QChar circleCharacter(const QFontMetrics& fm)
 
 class SensorToAdd {
   public:
-    QRegExp name;
+    QString rawNamePattern;     // pattern without anchoring
+    QRegularExpression name;    // rawNamePattern + anchors
     QString hostname;
     QString type;
     QList<QColor> colors;
@@ -162,7 +163,7 @@ FancyPlotter::FancyPlotter( QWidget* parent,
   : KSGRD::SensorDisplay( parent, title, workSheetSettings )
 {
     mBeams = 0;
-    mSettingsDialog = 0;
+    mSettingsDialog = nullptr;
     mSensorReportedMax = mSensorReportedMin = 0;
     mSensorManualMax = mSensorManualMin = 0;
     mUseManualRange = false;
@@ -618,7 +619,7 @@ void FancyPlotter::sendDataToPlotter( )
 
                     if(sensor->maxValue != 0 && !isPercentage(sensor)) {
                         //Use a multi length string incase we do not have enough room
-                        lastValue = i18n("%1 of %2", lastValue, mPlotter->valueAsString(sensor->maxValue, precision) ) + "\xc2\x9c" + lastValue;
+                        lastValue = i18n("%1 of %2", lastValue, mPlotter->valueAsString(sensor->maxValue, precision) );
                     }
                 } else {
                     lastValue = i18n("Error");
@@ -756,13 +757,13 @@ void FancyPlotter::answerReceived( int id, const QList<QByteArray> &answerlist )
     } else if( id == 200) {
         /* FIXME This doesn't check the host!  */
         if(!mSensorsToAdd.isEmpty())  {
-            foreach(SensorToAdd *sensor, mSensorsToAdd) {
+            for(SensorToAdd *sensor : mSensorsToAdd) {
                 int beamId = mBeams;  //Assign the next sensor to the next available beamId
                 for ( int i = 0; i < answerlist.count(); ++i ) {
                     if ( answerlist[ i ].isEmpty() )
                         continue;
-                    QString sensorName = QString::fromUtf8(answerlist[ i ].split('\t')[0]);
-                    if(sensor->name.exactMatch(sensorName)) {
+                    QString sensorName = QString::fromUtf8(answerlist[i].split('\t')[0]);
+                    if(sensor->name.matchView(sensorName).hasMatch()) {
                         if(sensor->summationName.isEmpty())
                             beamId = mBeams; //If summationName is not empty then reuse the previous beamId.  In this way we can have multiple sensors with the same beamId, which can then be summed together
                         QColor color;
@@ -772,7 +773,7 @@ void FancyPlotter::answerReceived( int id, const QList<QByteArray> &answerlist )
                             color = KSGRD::Style->sensorColor( beamId % KSGRD::Style->numSensorColors());
                         addSensor( sensor->hostname, sensorName,
                                 (sensor->type.isEmpty()) ? QStringLiteral("float") : sensor->type
-                                , QLatin1String(""), color, sensor->name.pattern(), beamId, sensor->summationName);
+                                , QLatin1String(""), color, sensor->rawNamePattern, beamId, sensor->summationName);
                     }
                 }
             }
@@ -825,13 +826,14 @@ bool FancyPlotter::restoreSettings( QDomElement &element )
         QDomElement el = dnList.item( i ).toElement();
         if(el.hasAttribute(QStringLiteral("regexpSensorName"))) {
             SensorToAdd *sensor = new SensorToAdd();
-            sensor->name = QRegExp(el.attribute(QStringLiteral("regexpSensorName")));
+            sensor->rawNamePattern = el.attribute(QStringLiteral("regexpSensorName"));
+            sensor->name = QRegularExpression(QRegularExpression::anchoredPattern(sensor->rawNamePattern));
             sensor->hostname = el.attribute( QStringLiteral("hostName") );
             sensor->type = el.attribute( QStringLiteral("sensorType") );
             sensor->summationName = el.attribute(QStringLiteral("summationName"));
             QStringList colors = el.attribute(QStringLiteral("color")).split(QLatin1Char(','));
             bool ok;
-            foreach(const QString &color, colors) {
+            for(const QString &color : colors) {
                 int c = color.toUInt( &ok, 0 );
                 if(ok) {
                     QColor col( (c & 0xff0000) >> 16, (c & 0xff00) >> 8, (c & 0xff), (c & 0xff000000) >> 24);

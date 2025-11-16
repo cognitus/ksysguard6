@@ -36,7 +36,7 @@
 #include <KMessageBox>
 #include <KService>
 
-#include "ksgrd/SensorManager.h"
+#include "../ksgrd/SensorManager.h"
 #include "SensorDisplay.h"
 
 #define NONE -1
@@ -100,7 +100,7 @@ void SensorDisplay::timerTick()
 {
   int i = 0;
 
-  foreach( SensorProperties *s, mSensors) {
+  for( SensorProperties *s : mSensors) {
     sendRequest( s->hostName(), s->name(), i++ );
  }
 }
@@ -145,7 +145,7 @@ bool SensorDisplay::eventFilter( QObject *object, QEvent *event )
   if ( event->type() == QEvent::MouseButtonPress) {
     QMouseEvent *e = static_cast<QMouseEvent *> (event);
     if( e->button() == Qt::RightButton ) {
-      showContextMenu( mapFromGlobal( e->globalPos() ) );
+      showContextMenu( mapFromGlobal( e->globalPosition() ).toPoint() );
       return true;
     }
   } 
@@ -195,7 +195,7 @@ void SensorDisplay::updateWhatsThis()
 
 void SensorDisplay::hosts( QStringList& list )
 {
-  foreach( SensorProperties *s, mSensors)
+  for( SensorProperties *s : mSensors)
     if ( !list.contains( s->hostName() ) )
       list.append( s->hostName() );
 }
@@ -473,5 +473,3 @@ QString SensorProperties::regExpName() const
 {
   return mRegExpName;
 }
-
-
