@@ -58,7 +58,10 @@ target_include_directories(processui
         "$<BUILD_INTERFACE:${libksysguard_SOURCE_DIR}>"
         "$<INSTALL_INTERFACE:${KDE_INSTALL_INCLUDEDIR}/ksysguard>"
 )
+
 if(HAVE_X11)
+    set(QT_NO_PRIVATE_MODULE_WARNING ON)
+	 find_package(Qt6 ${QT_MIN_VER} COMPONENTS Gui GuiPrivate)
     target_link_libraries(processui PRIVATE Qt6::GuiPrivate KF6::WindowSystem)
 endif()
 
